@@ -46,4 +46,10 @@ export const MOOD_BOOSTS = {
         [GENRES.ROMANCE]: 2,
         [GENRES.HISTORY]: 2,
     },
+    horror: {
+        [GENRES.HORROR]: 7,
+        [GENRES.THRILLER]: 4,
+        [GENRES.MYSTERY]: 3,
+    },
+
 };

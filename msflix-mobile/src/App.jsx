@@ -8,7 +8,17 @@ import { loadState, saveState } from "./storage";
 import iconPng from "./assets/icon.png";
 import { recommendMoviesV2 } from "./reco/recommend";
 import { RecoModal } from "./components/RecoModal";
+import { bumpTasteVersion } from "./reco/tasteVersion";
+import { clearCandidatePoolCache } from "./reco/candidatePoolCache";
+import {
+  loadCandidatePoolCache,
+  saveCandidatePoolCache,
+  isCandidatePoolExpired,
+} from "./reco/candidatePoolCache";
+
 import { buildCandidatePool } from "./reco/candidatePool";
+import { addRecoHistory } from "./reco/recoHistory";
+import { Onboarding } from "./components/Onboarding";
 
 
 
@@ -18,6 +28,8 @@ const MOODS = [
   { id: "hype", label: "Hype", hint: "Action & fast" },
   { id: "mind", label: "Mind", hint: "Thriller & sci-fi" },
   { id: "emotional", label: "Feels", hint: "Drama & heart" },
+  { id: "horror", label: "Horror", hint: "Scary & dark" },
+
 ];
 
 export default function App() {
@@ -26,6 +38,8 @@ export default function App() {
   const [recoOpen, setRecoOpen] = useState(false);
   const [recoList, setRecoList] = useState([]);
   const [recoLoading, setRecoLoading] = useState(false);
+  const [cachedPool, setCachedPool] = useState([]);
+  const [poolLoading, setPoolLoading] = useState(false);
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -33,21 +47,69 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [showPicker, setShowPicker] = useState(false);
   const [picked, setPicked] = useState(null);
+  const [pickingLoading, setPickingLoading] = useState(false);
 
   const [userState, setUserState] = useState(() =>
-    loadState() ?? { liked: {}, disliked: {}, watched: {}, watchlist: {} }
+    loadState() ?? { liked: {}, disliked: {}, watched: {}, watchlist: {}, onboardingDone: false }
 
   );
+  useEffect(() => {
+    async function preparePool() {
+      setPoolLoading(true);
+
+      try {
+        const cache = loadCandidatePoolCache();
+
+        // ✅ Use cache if fresh
+        if (cache && !isCandidatePoolExpired(cache) && Array.isArray(cache.pool)) {
+          setCachedPool(cache.pool);
+          setPoolLoading(false);
+          return;
+        }
+
+        // ✅ Rebuild pool (fresh)
+        const pool = await buildCandidatePool({
+          userState,
+          mood: "pick",
+          minRating: 6.0,
+          minVotes: 200,
+          maxPoolSize: 140,
+        });
+
+        saveCandidatePoolCache(pool);
+        setCachedPool(pool);
+      } catch (e) {
+        console.error("Pool build failed:", e);
+      } finally {
+        setPoolLoading(false);
+      }
+    }
+
+    preparePool();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const likedList = useMemo(
     () => Object.values(userState.liked || {}),
     [userState.liked]
   );
+  const totalTasteSignals =
+    Object.keys(userState.liked || {}).length +
+    Object.keys(userState.disliked || {}).length;
 
   const watchlistArr = useMemo(
     () => Object.values(userState.watchlist || {}),
     [userState.watchlist]
   );
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    // Show onboarding if user is new and hasn't trained
+    if (!userState.onboardingDone && totalTasteSignals < 5) {
+      setShowOnboarding(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     saveState(userState);
@@ -103,6 +165,9 @@ export default function App() {
       delete next.disliked[movie.id];
       return next;
     });
+    bumpTasteVersion();
+    clearCandidatePoolCache();
+    setCachedPool([]);
   }
 
   function dislikeMovie(movie) {
@@ -112,12 +177,17 @@ export default function App() {
       delete next.liked[movie.id];
       return next;
     });
+    bumpTasteVersion();
+    clearCandidatePoolCache();
+    setCachedPool([]);
   }
 
   function markWatched(movie) {
     setUserState((prev) => {
       const next = structuredClone(prev);
       next.watched[movie.id] = { id: movie.id, t: Date.now() };
+      // Remove from watchlist when marked as watched
+      if (next.watchlist) delete next.watchlist[movie.id];
       return next;
     });
   }
@@ -136,41 +206,61 @@ export default function App() {
       delete next.liked[movieId];
       return next;
     });
+    bumpTasteVersion();
+    clearCandidatePoolCache();
+    setCachedPool([]);
+    setRecoList([]); // Clear recommendations since profile changed
+    setRecoOpen(false); // Close recommendations modal
   }
   async function pickForMe() {
-    try {
-      setRecoLoading(true);
-      // ✅ Build a strong pool dynamically (not based on current page)
-      const candidatePool = await buildCandidatePool({
-        userState,
-        mood,
-        minRating: 6.0, // your requirement
-        minVotes: 200,  // prevents trash movies with 10 votes
-        maxPoolSize: 140,
-      });
+    if (pickingLoading) return;
 
-      if (!candidatePool.length) {
-        alert("No good movies found. Like a few movies first or try another mood.");
-        setRecoLoading(false);
-        return;
+    setPickingLoading(true);
+
+    try {
+      let pool = cachedPool;
+
+      // fallback if cache not ready
+      if (!pool || pool.length === 0) {
+        console.log("Pool is empty or not cached, rebuilding...");
+        pool = await buildCandidatePool({
+          userState,
+          mood,
+          minRating: 6.0,
+          minVotes: 200,
+          maxPoolSize: 140,
+        });
+        console.log("Built pool with", pool.length, "movies, saving...");
+        // Save the newly built pool to cache
+        saveCandidatePoolCache(pool);
+      } else {
+        console.log("Using cached pool with", pool.length, "movies");
       }
 
-      // ✅ Rank using your V2 recommender (genres + keywords + explanations)
-      const top5 = await recommendMoviesV2(userState, candidatePool, { mood }, 5);
+      const top5 = await recommendMoviesV2(userState, pool, { mood }, 5);
 
       if (!top5.length) {
-        alert("Couldn't generate recommendations. Try again.");
-        setRecoLoading(false);
+        alert("No good recommendations found. Try another mood.");
         return;
       }
 
-      setRecoList(top5);
+      // Filter out movies already in watchlist
+      const filtered = top5.filter((m) => !isInWatchlist(m.id));
+
+      if (!filtered.length) {
+        alert("All recommendations are already in your watchlist!");
+        return;
+      }
+
+      addRecoHistory(filtered.map((m) => m.id));
+
+      setRecoList(filtered);
       setRecoOpen(true);
     } catch (e) {
       console.error(e);
-      alert("Pick for me failed. Check console for details.");
+      alert("Pick for me failed. Check console.");
     } finally {
-      setRecoLoading(false);
+      setPickingLoading(false);
     }
   }
 
@@ -195,7 +285,25 @@ export default function App() {
     return !!userState.watchlist?.[movieId];
   }
 
-
+  if (showOnboarding) {
+    return (
+      <div className="app">
+        <Onboarding
+          userState={userState}
+          onLike={(movie) => likeMovie(movie)}
+          onDislike={(movie) => dislikeMovie(movie)}
+          onSkip={() => {
+            setUserState((prev) => ({ ...prev, onboardingDone: true }));
+            setShowOnboarding(false);
+          }}
+          onDone={() => {
+            setUserState((prev) => ({ ...prev, onboardingDone: true }));
+            setShowOnboarding(false);
+          }}
+        />
+      </div>
+    );
+  }
   return (
     <div className="app">
       <header className="top">
@@ -207,8 +315,8 @@ export default function App() {
           </div>
         </div>
 
-        <button className="pill" onClick={pickForMe} disabled={recoLoading}>
-          {recoLoading ? "Picking..." : "🎲 Pick for me"}
+        <button className="pill" onClick={pickForMe} disabled={pickingLoading}>
+          {pickingLoading ? "Picking..." : "🎲 Pick for me"}
         </button>
       </header>
 
@@ -278,13 +386,17 @@ export default function App() {
                   movie={movie}
                   isLiked={!!userState.liked?.[movie.id]}
                   isDisliked={!!userState.disliked?.[movie.id]}
+                  isWatched={!!userState.watched?.[movie.id]}
                   onLike={() => likeMovie(movie)}
                   onDislike={() => dislikeMovie(movie)}
                   onWatched={() => markWatched(movie)}
+                  onUnwatched={() => unmarkWatched(movie.id)}
                   onOpen={() => {
                     setPicked(movie);
                     setShowPicker(true);
                   }}
+                  showRemove={tab === "liked"}
+                  onRemoveLike={() => removeLike(movie.id)}
                 />
               )
             )}
@@ -319,6 +431,9 @@ export default function App() {
           setShowPicker(true);
           setRecoOpen(false);
         }}
+        onAddToWatchlist={(movie) => addToWatchlist(movie)}
+        onRemoveFromWatchlist={(movieId) => removeFromWatchlist(movieId)}
+        onReshuffle={pickForMe}
       />
 
     </div>

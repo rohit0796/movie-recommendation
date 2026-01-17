@@ -1,6 +1,7 @@
 import { buildTasteProfileV2 } from "./profile";
 import { scoreMovieV2 } from "./scoring";
 import { getMovieKeywords } from "./keywordCache";
+import { isRecentlyRecommended } from "./recoHistory";
 
 // ---------- helpers ----------
 function overlapCount(arrA = [], arrB = []) {
@@ -65,16 +66,17 @@ export async function recommendMoviesV2(
   const disliked = userState?.disliked || {};
   const liked = userState?.liked || {};
 
-  // ✅ Filter out watched + disliked + already liked
+  // ✅ Filter out watched + disliked + already liked + recently recommended
   // ✅ Also apply quality gate here (IMPORTANT)
+
+
   const filtered = candidates
     .filter((m) => !watched[String(m.id)])
     .filter((m) => !disliked[String(m.id)])
     .filter((m) => !liked[String(m.id)])
+    .filter((m) => !isRecentlyRecommended(m.id))
     .filter((m) => passesQualityGate(m));
-
   const profile = await buildTasteProfileV2(userState);
-
   // Score + rank
   const ranked = [];
   for (const movie of filtered) {

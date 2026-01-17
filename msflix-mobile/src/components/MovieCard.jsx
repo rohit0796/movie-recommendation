@@ -38,12 +38,13 @@ export function MovieCard({
                 </div>
 
                 <div className="actions" onClick={(e) => e.stopPropagation()}>
-                    <button className={`btn ${isLiked ? "on" : ""}`} onClick={onLike}>
+                    <button className={`btn ${isLiked ? "on" : ""}`} onClick={onLike} disabled={isLiked}>
                         <MdThumbUp />
                     </button>
                     <button
                         className={`btn ${isDisliked ? "off" : ""}`}
                         onClick={onDislike}
+                        disabled={isDisliked}
                     >
                         <MdThumbDown />
                     </button>

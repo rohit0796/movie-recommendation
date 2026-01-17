@@ -271,14 +271,14 @@ body {
 }
 
 .btn {
-    flex: 1;
     border-radius: 12px;
-    padding: 7px 0;
+    padding: 7px 10px;
     border: 1px solid rgba(255, 255, 255, 0.10);
     background: rgba(255, 255, 255, 0.03);
     color: var(--text);
     font-weight: 800;
     font-size: 12px;
+    cursor: pointer;
 }
 
 
@@ -291,7 +291,9 @@ body {
 }
 
 .btn.ghost {
-    opacity: 0.7;
+    flex: 1;
+    border: 0.5px solid rgba(255, 77, 109, 0.8);
+    color: #ff4d6d;
 }
 
 .bottom {
@@ -362,16 +364,63 @@ body {
     font-size: 12px;
 }
 
-.recoActions {
+.recoWatchlist {
     display: grid;
-    grid-template-columns: 1fr 1.2fr 1fr;
+    grid-template-columns: 1fr;
     gap: 10px;
-    padding: 12px 14px calc(100px + env(safe-area-inset-bottom));
+    padding: 10px 14px 0;
+}
+
+.recoWatchlist .watchlistBtn {
+    border-radius: 16px;
+    padding: 12px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    font-weight: 900;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.recoWatchlist .watchlistBtn:active {
+    transform: scale(0.98);
+}
+
+.recoWatchlist .watchlistBtn.active {
+    border: 1px solid rgba(109, 94, 252, 0.6);
+    background: rgba(109, 94, 252, 0.15);
+    color: #6d5efc;
+}
+
+.recoActions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 8px 14px 16px;
+    max-width: 600px;
+    margin: 0 auto;
 }
 
 @media (min-width: 768px) {
     .recoActions {
         padding: 14px 18px 18px;
+    }
+}
+
+.recoActions button {
+    flex: 0 0 calc((100% - 20px) / 3);
+    max-width: 160px;
+}
+
+@media (min-width: 768px) {
+    .recoActions button {
+        flex: 0 0 calc((100% - 30px) / 4);
+        max-width: 140px;
     }
 }
 
@@ -485,6 +534,54 @@ body {
 
 .modalHero {
     position: relative;
+}
+
+.modalHero.swipe-left {
+    animation: slideOutLeft 0.25s ease-out, slideInRight 0.25s ease-out 0.1s;
+}
+
+.modalHero.swipe-right {
+    animation: slideOutRight 0.25s ease-out, slideInLeft 0.25s ease-out 0.1s;
+}
+
+@keyframes slideOutLeft {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-40px);
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(40px);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(40px);
+    }
+}
+
+@keyframes slideInLeft {
+    from {
+        transform: translateX(-40px);
+    }
+
+    to {
+        transform: translateX(0);
+    }
 }
 
 .backdrop {
@@ -616,4 +713,304 @@ body {
 
 .watchlistBtn.active:hover {
     background: rgba(109, 94, 252, 0.25);
+}
+
+.onboarding {
+  padding: 14px;
+  padding-bottom: 110px;
+}
+
+.onboardingTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.onTitle {
+  font-weight: 900;
+  font-size: 18px;
+}
+
+.onSub {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.onSkip {
+  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.onCard {
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  padding: 14px;
+}
+
+.onSectionTitle {
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.genreGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.genreChip {
+  border-radius: 999px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.genreChip.active {
+  border-color: rgba(109, 94, 252, 0.7);
+  box-shadow: 0 0 0 2px rgba(109, 94, 252, 0.15) inset;
+}
+
+.onActionsRow {
+  margin-top: 14px;
+  display: flex;
+}
+
+.onPrimary {
+  flex: 1;
+  border-radius: 16px;
+  padding: 12px 12px;
+  border: none;
+  background: rgba(109, 94, 252, 0.8);
+  color: white;
+  font-weight: 900;
+}
+
+.onHint {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.onProgress {
+  font-weight: 900;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.onStatus {
+  text-align: center;
+  padding: 30px 10px;
+  color: var(--muted);
+}
+
+.trainPosterWrap {
+  display: grid;
+  place-items: center;
+  margin-top: 10px;
+}
+
+.trainPoster {
+  width: 180px;
+  aspect-ratio: 2 / 3;
+  border-radius: 18px;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.trainTitle {
+  font-weight: 900;
+  font-size: 16px;
+  text-align: center;
+  margin-top: 12px;
+}
+
+.trainMeta {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  margin-top: 6px;
+}
+
+.onModalWrap {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(10px);
+  display: grid;
+  place-items: center;
+  z-index: 999;
+  padding: 14px;
+}
+
+.onModal {
+  width: 100%;
+  max-width: 520px;
+  background: rgba(18, 18, 26, 0.96);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 22px;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.55);
+  padding: 14px;
+}
+
+.onModalTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.onTitle {
+  font-weight: 900;
+  font-size: 18px;
+}
+
+.onSub {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.onSkip {
+  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.onCard {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.onSectionTitle {
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.genreGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.genreChip {
+  border-radius: 999px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.genreChip.active {
+  border-color: rgba(109, 94, 252, 0.7);
+  box-shadow: 0 0 0 2px rgba(109, 94, 252, 0.15) inset;
+}
+
+.onActionsRow {
+  margin-top: 14px;
+  display: flex;
+}
+
+.onPrimary {
+  flex: 1;
+  border-radius: 16px;
+  padding: 12px 12px;
+  border: none;
+  background: rgba(109, 94, 252, 0.85);
+  color: white;
+  font-weight: 900;
+}
+
+.onHint {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.onProgress {
+  font-weight: 900;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.onStatus {
+  text-align: center;
+  padding: 30px 10px;
+  color: var(--muted);
+}
+
+.trainPosterWrap {
+  display: grid;
+  place-items: center;
+  margin-top: 10px;
+}
+
+.trainPoster {
+  width: 180px;
+  aspect-ratio: 2 / 3;
+  border-radius: 18px;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.trainTitle {
+  font-weight: 900;
+  font-size: 16px;
+  text-align: center;
+  margin-top: 12px;
+}
+
+.trainMeta {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  margin-top: 6px;
+}
+
+.trainButtons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.trainBtn {
+  border-radius: 16px;
+  padding: 12px 10px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  font-weight: 900;
+}
+
+.trainBtn.good {
+  border-color: rgba(43, 213, 118, 0.6);
+}
+
+.trainBtn.bad {
+  border-color: rgba(255, 77, 109, 0.6);
+}
+
+.trainBtn.neutral {
+  border-color: rgba(109, 94, 252, 0.55);
 }

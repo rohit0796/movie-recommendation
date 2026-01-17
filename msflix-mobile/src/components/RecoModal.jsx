@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
+import { MdBookmark, MdBookmarkBorder, MdClose, MdAutorenew } from "react-icons/md";
 import { getBackdropUrl, getPosterUrl } from "../utils";
 
 export function RecoModal({
@@ -7,8 +8,13 @@ export function RecoModal({
     userState,
     onClose,
     onOpenMovie,   // open PickerModal for selected
+    onAddToWatchlist,
+    onRemoveFromWatchlist,
+    onReshuffle,   // new prop for reshuffling
 }) {
     const [index, setIndex] = useState(0);
+    const [swipeDirection, setSwipeDirection] = useState(null);
+    const touchStartX = useRef(0);
 
     const safeIndex = useMemo(() => {
         if (!recommendations.length) return 0;
@@ -17,12 +23,45 @@ export function RecoModal({
 
     const movie = recommendations[safeIndex];
 
+    const handleTouchStart = (e) => {
+        touchStartX.current = e.touches[0].clientX;
+    };
+
+    const handleTouchEnd = (e) => {
+        const touchEndX = e.changedTouches[0].clientX;
+        const diff = touchStartX.current - touchEndX;
+        const swipeThreshold = 50; // minimum swipe distance
+
+        if (Math.abs(diff) > swipeThreshold) {
+            if (diff > 0) {
+                // Swiped left - go to next
+                setSwipeDirection('left');
+                if (safeIndex < recommendations.length - 1) {
+                    setIndex((i) => Math.min(recommendations.length - 1, i + 1));
+                }
+            } else {
+                // Swiped right - go to prev
+                setSwipeDirection('right');
+                if (safeIndex > 0) {
+                    setIndex((i) => Math.max(0, i - 1));
+                }
+            }
+            // Reset direction after animation
+            setTimeout(() => setSwipeDirection(null), 300);
+        }
+    };
+
     if (!open) return null;
 
     return (
         <div className="modalWrap" onClick={onClose}>
-            <div className="modal recoModal" onClick={(e) => e.stopPropagation()}>
-                <div className="modalHero">
+            <div
+                className="modal recoModal"
+                onClick={(e) => e.stopPropagation()}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+            >
+                <div className={`modalHero ${swipeDirection ? `swipe-${swipeDirection}` : ''}`}>
                     <img
                         className="backdrop"
                         src={getBackdropUrl(movie?.backdrop_path)}
@@ -32,7 +71,7 @@ export function RecoModal({
                     <div className="modalOverlay" />
 
                     <div className="modalTop">
-                        <button className="close" onClick={onClose}>✖</button>
+                        <button className="close" onClick={onClose}><MdClose size={20} /></button>
                     </div>
 
                     <div className="modalInfo">
@@ -65,6 +104,22 @@ export function RecoModal({
                     </div>
                 </div>
 
+                <div className="recoWatchlist">
+                    <button
+                        className={`watchlistBtn ${userState?.watchlist?.[movie?.id] ? 'active' : ''}`}
+                        onClick={() => {
+                            if (userState?.watchlist?.[movie?.id]) {
+                                onRemoveFromWatchlist?.(movie?.id);
+                            } else {
+                                onAddToWatchlist?.(movie);
+                            }
+                        }}
+                    >
+                        {userState?.watchlist?.[movie?.id] ? <MdBookmark size={18} /> : <MdBookmarkBorder size={18} />}
+                        {userState?.watchlist?.[movie?.id] ? 'In Watchlist' : 'Add to List'}
+                    </button>
+                </div>
+
                 <div className="recoActions">
                     <button
                         disabled={safeIndex === 0}
@@ -77,7 +132,7 @@ export function RecoModal({
                         className="primary"
                         onClick={() => onOpenMovie?.(movie)}
                     >
-                        Open 🎬
+                        Open 
                     </button>
 
                     <button
@@ -85,6 +140,14 @@ export function RecoModal({
                         onClick={() => setIndex((i) => Math.min(recommendations.length - 1, i + 1))}
                     >
                         Next ▶
+                    </button>
+
+                    <button
+                        className="reshuffle"
+                        onClick={() => onReshuffle?.()}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                        <MdAutorenew size={18} /> Reshuffle
                     </button>
                 </div>
             </div>

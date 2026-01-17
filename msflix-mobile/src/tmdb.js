@@ -39,6 +39,11 @@ function moodToParams(mood) {
             return { with_genres: "878,9648,53", sort_by: "vote_average.desc", "vote_count.gte": 500 }; // Sci-fi, Mystery, Thriller
         case "emotional":
             return { with_genres: "18", sort_by: "vote_average.desc", "vote_count.gte": 300 }; // Drama
+        case "horror":
+            return {
+                with_genres: "27,53,9648", // Horror + Thriller + Mystery
+                sort_by: "popularity.desc",
+            };
         default:
             return { sort_by: "popularity.desc" };
     }

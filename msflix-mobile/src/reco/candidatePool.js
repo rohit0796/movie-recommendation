@@ -48,6 +48,8 @@ function getMoodGenreBoost(mood) {
             return [35, 10751, 10749]; // Comedy, Family, Romance
         case "emotional":
             return [18, 10749]; // Drama, Romance
+        case "horror":
+            return [27, 53, 9648]; // Horror, Thriller, Mystery
         default:
             return [];
     }
