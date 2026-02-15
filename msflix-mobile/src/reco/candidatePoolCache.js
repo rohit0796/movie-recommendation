@@ -1,18 +1,18 @@
-const KEY = "msflix_candidate_pool_cache_v3";
+const KEY = "msflix_candidate_pool_cache_v1";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 function loadAllCaches() {
     try {
         const raw = localStorage.getItem(KEY);
-        if (!raw) return { v: 3, entries: {} };
+        if (!raw) return { v: 4, entries: {} };
         const data = JSON.parse(raw);
 
         // Backward compatibility with single-entry cache shape
         if (Array.isArray(data?.pool)) {
             const mood = data?.mood || "pick";
             return {
-                v: 3,
+                v: 4,
                 entries: {
                     [mood]: {
                         createdAt: data?.createdAt || 0,
@@ -27,10 +27,10 @@ function loadAllCaches() {
             return data;
         }
 
-        return { v: 3, entries: {} };
+        return { v: 4, entries: {} };
     } catch (e) {
         console.error("Failed to load cache:", e);
-        return { v: 3, entries: {} };
+        return { v: 4, entries: {} };
     }
 }
 
@@ -49,6 +49,7 @@ export function saveCandidatePoolCache(pool = [], meta = {}) {
             id: m.id,
             title: m.title,
             poster_path: m.poster_path,
+            backdrop_path: m.backdrop_path,
             vote_average: m.vote_average,
             release_date: m.release_date,
             overview: m.overview,
@@ -67,7 +68,7 @@ export function saveCandidatePoolCache(pool = [], meta = {}) {
         };
 
         const payload = {
-            v: 3,
+            v: 4,
             entries: all.entries,
         };
 

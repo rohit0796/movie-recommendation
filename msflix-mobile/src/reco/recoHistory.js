@@ -1,5 +1,5 @@
 const KEY = "msflix_reco_history_v1";
-const LIMIT = 60;
+const LIMIT = 20;
 
 export function loadRecoHistory() {
     try {

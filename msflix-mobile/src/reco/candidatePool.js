@@ -34,7 +34,7 @@ function hasAnyGenre(movie, genreIds = []) {
     return genreIds.some((g) => set.has(g));
 }
 
-function passesQualityGate(movie, minRating = 6.0, minVotes = 200) {
+function passesQualityGate(movie, minRating = 6.5, minVotes = 200) {
     const rating = movie?.vote_average || 0;
     const votes = movie?.vote_count || 0;
     if (rating < minRating) return false;
@@ -115,10 +115,12 @@ function pickLikedAnchors(likedIds = [], maxAnchors = 6) {
 export async function buildCandidatePool({
     userState,
     mood = "pick",
-    minRating = 6.0,
+    minRating = 6.5,
     minVotes = 200,
     maxPoolSize = 120,
 }) {
+    const isStrictMood = mood !== "pick";
+
     // If user has no likes yet → fallback to mood discover + trending
     const likedMovies = Object.values(userState?.liked || {});
     const likedIds = likedMovies.map((m) => m.id);
@@ -139,17 +141,13 @@ export async function buildCandidatePool({
     // A) If user has liked movies → take TMDB recommendations + similar
     // (This is the best signal)
     if (likedIds.length > 0) {
-        const anchorLikedIds = pickLikedAnchors(likedIds, 6);
+        const anchorLikedIds = pickLikedAnchors(likedIds, isStrictMood ? 2 : 4);
 
         const recPromises = anchorLikedIds.map(async (id) => {
-            const pageTwoBias = Math.random() > 0.45;
-            const pages = pageTwoBias ? [1, 2] : [1];
-
-            const reqs = [];
-            for (const page of pages) {
-                reqs.push(fetchRecommendationsForMovie(id, page));
-                reqs.push(fetchSimilarForMovie(id, page));
-            }
+            const reqs = [
+                fetchRecommendationsForMovie(id, 1),
+                fetchSimilarForMovie(id, 1),
+            ];
 
             const settled = await Promise.allSettled(reqs);
             return settled
@@ -163,7 +161,7 @@ export async function buildCandidatePool({
 
     // B) Discover from taste-based genres (dynamic)
     // Example: if you like Action + Thriller, pool becomes Action/Thriller
-    if (topGenres.length > 0) {
+    if (!isStrictMood && topGenres.length > 0) {
         const [tastePage1, tastePage2] = await Promise.allSettled([
             fetchDiscoverByGenres(topGenres, {
                 minRating,
@@ -186,46 +184,48 @@ export async function buildCandidatePool({
     // C) Discover from mood (existing mood discover endpoint)
     // This keeps it “right now” relevant
     try {
-        const [moodPage1, moodPage2] = await Promise.allSettled([
-            fetchDiscover(mood, 1),
-            fetchDiscover(mood, 2),
-        ]);
+        const moodRequests = [fetchDiscover(mood, 1)];
+        if (!isStrictMood) moodRequests.push(fetchDiscover(mood, 2));
+        const [moodPage1, moodPage2] = await Promise.allSettled(moodRequests);
         if (moodPage1.status === "fulfilled") poolParts.push(...moodPage1.value);
-        if (moodPage2.status === "fulfilled") poolParts.push(...moodPage2.value);
+        if (moodPage2 && moodPage2.status === "fulfilled") poolParts.push(...moodPage2.value);
     } catch {
         // ignore
     }
 
     // D) Extra: mood genre boosted discover (stronger pool alignment)
     if (moodGenres.length > 0) {
-        const [moodGenrePage1, moodGenrePage2] = await Promise.allSettled([
-            fetchDiscoverByGenres(moodGenres.slice(0, 3), {
-                minRating,
-                minVotes,
-                sort_by: "popularity.desc",
-                page: 1,
-            }),
-            fetchDiscoverByGenres(moodGenres.slice(0, 3), {
+        const moodGenreRequests = [fetchDiscoverByGenres(moodGenres.slice(0, 3), {
+            minRating,
+            minVotes,
+            sort_by: "popularity.desc",
+            page: 1,
+        })];
+        if (!isStrictMood) {
+            moodGenreRequests.push(fetchDiscoverByGenres(moodGenres.slice(0, 3), {
                 minRating,
                 minVotes,
                 sort_by: "vote_average.desc",
                 page: 2,
-            }),
-        ]);
+            }));
+        }
+        const [moodGenrePage1, moodGenrePage2] = await Promise.allSettled(moodGenreRequests);
         if (moodGenrePage1.status === "fulfilled") poolParts.push(...moodGenrePage1.value);
-        if (moodGenrePage2.status === "fulfilled") poolParts.push(...moodGenrePage2.value);
+        if (moodGenrePage2 && moodGenrePage2.status === "fulfilled") poolParts.push(...moodGenrePage2.value);
     }
 
     // E) Trending fallback (always add some freshness)
-    try {
-        const [trendPage1, trendPage2] = await Promise.allSettled([
-            fetchTrending(1),
-            fetchTrending(2),
-        ]);
-        if (trendPage1.status === "fulfilled") poolParts.push(...trendPage1.value);
-        if (trendPage2.status === "fulfilled") poolParts.push(...trendPage2.value);
-    } catch {
-        // ignore
+    if (!isStrictMood) {
+        try {
+            const [trendPage1, trendPage2] = await Promise.allSettled([
+                fetchTrending(1),
+                fetchTrending(2),
+            ]);
+            if (trendPage1.status === "fulfilled") poolParts.push(...trendPage1.value);
+            if (trendPage2.status === "fulfilled") poolParts.push(...trendPage2.value);
+        } catch {
+            // ignore
+        }
     }
 
     // ✅ 5) Merge + dedupe

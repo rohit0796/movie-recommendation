@@ -104,7 +104,7 @@ export async function fetchDiscoverByGenres(genreIds = [], opts = {}) {
         with_genres: withGenres || undefined,
 
         // ✅ Quality gate
-        "vote_average.gte": opts.minRating ?? 6.0,
+        "vote_average.gte": opts.minRating ?? 6.5,
         "vote_count.gte": opts.minVotes ?? 200,
 
         // optional language filter

@@ -184,6 +184,38 @@ body {
     font-weight: 800;
 }
 
+.watchlistFilters {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 8px 14px 0;
+    scrollbar-width: thin;
+}
+
+.watchlistFilterBtn {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.06);
+    color: #dfe6ff;
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.watchlistFilterBtn.active {
+    background: linear-gradient(135deg, #3ec5ff, #7d8bff);
+    border-color: transparent;
+    color: #081122;
+}
+
+.watchlistFilterHint {
+    color: rgba(223, 230, 255, 0.75);
+    font-size: 12px;
+    align-self: center;
+    white-space: nowrap;
+}
+
 .content {
     padding: 10px 14px;
 }

@@ -32,6 +32,28 @@ const MOODS = [
 
 ];
 
+const GENRE_NAMES = {
+  12: "Adventure",
+  14: "Fantasy",
+  16: "Animation",
+  18: "Drama",
+  27: "Horror",
+  28: "Action",
+  35: "Comedy",
+  36: "History",
+  37: "Western",
+  53: "Thriller",
+  80: "Crime",
+  878: "Sci-Fi",
+  9648: "Mystery",
+  99: "Documentary",
+  10402: "Music",
+  10749: "Romance",
+  10751: "Family",
+  10752: "War",
+  10770: "TV Movie",
+};
+
 export default function App() {
   const [tab, setTab] = useState("home"); // home | search | liked
   const [mood, setMood] = useState("pick");
@@ -48,6 +70,7 @@ export default function App() {
   const [showPicker, setShowPicker] = useState(false);
   const [picked, setPicked] = useState(null);
   const [pickingLoading, setPickingLoading] = useState(false);
+  const [watchlistGenreFilter, setWatchlistGenreFilter] = useState("all");
 
   const [userState, setUserState] = useState(() =>
     loadState() ?? { liked: {}, disliked: {}, watched: {}, watchlist: {}, onboardingDone: false }
@@ -102,6 +125,30 @@ export default function App() {
     () => Object.values(userState.watchlist || {}),
     [userState.watchlist]
   );
+
+  const watchlistGenreOptions = useMemo(() => {
+    const ids = new Set();
+    for (const movie of watchlistArr) {
+      for (const id of movie.genre_ids || []) ids.add(Number(id));
+    }
+
+    return Array.from(ids)
+      .sort((a, b) => (GENRE_NAMES[a] || String(a)).localeCompare(GENRE_NAMES[b] || String(b)))
+      .map((id) => ({ id: String(id), label: GENRE_NAMES[id] || `Genre ${id}` }));
+  }, [watchlistArr]);
+
+  const filteredWatchlist = useMemo(() => {
+    if (watchlistGenreFilter === "all") return watchlistArr;
+    return watchlistArr.filter((movie) =>
+      (movie.genre_ids || []).some((id) => String(id) === watchlistGenreFilter)
+    );
+  }, [watchlistArr, watchlistGenreFilter]);
+
+  useEffect(() => {
+    if (watchlistGenreFilter === "all") return;
+    const exists = watchlistGenreOptions.some((g) => g.id === watchlistGenreFilter);
+    if (!exists) setWatchlistGenreFilter("all");
+  }, [watchlistGenreFilter, watchlistGenreOptions]);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
@@ -373,7 +420,30 @@ export default function App() {
       )}
       {tab === "watchlist" && (
         <div className="sectionTitle">
-          Watchlist ({watchlistArr.length})
+          Watchlist ({filteredWatchlist.length}/{watchlistArr.length})
+        </div>
+      )}
+
+      {tab === "watchlist" && (
+        <div className="watchlistFilters">
+          <button
+            className={`watchlistFilterBtn ${watchlistGenreFilter === "all" ? "active" : ""}`}
+            onClick={() => setWatchlistGenreFilter("all")}
+          >
+            All
+          </button>
+          {watchlistGenreOptions.map((g) => (
+            <button
+              key={g.id}
+              className={`watchlistFilterBtn ${watchlistGenreFilter === g.id ? "active" : ""}`}
+              onClick={() => setWatchlistGenreFilter(g.id)}
+            >
+              {g.label}
+            </button>
+          ))}
+          {watchlistGenreOptions.length === 0 && (
+            <span className="watchlistFilterHint">Add movies with genre data to filter by genre.</span>
+          )}
         </div>
       )}
 
@@ -388,10 +458,13 @@ export default function App() {
         {!loading && tab === "watchlist" && watchlistArr.length === 0 && (
           <div className="status">Your watchlist is empty. Add some movies!</div>
         )}
+        {!loading && tab === "watchlist" && watchlistArr.length > 0 && filteredWatchlist.length === 0 && (
+          <div className="status">No movies in this genre filter.</div>
+        )}
 
         {!loading && (
           <div className="grid">
-            {(tab === "watchlist" ? watchlistArr : tab === "liked" ? likedList : items).map(
+            {(tab === "watchlist" ? filteredWatchlist : tab === "liked" ? likedList : items).map(
               (movie) => (
                 <MovieCard
                   key={movie.id}
