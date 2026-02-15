@@ -22,6 +22,17 @@ export function RecoModal({
     }, [index, recommendations.length]);
 
     const movie = recommendations[safeIndex];
+    const total = recommendations.length;
+
+    function goNext() {
+        if (!total) return;
+        setIndex((i) => (i + 1) % total);
+    }
+
+    function goPrev() {
+        if (!total) return;
+        setIndex((i) => (i - 1 + total) % total);
+    }
 
     const handleTouchStart = (e) => {
         touchStartX.current = e.touches[0].clientX;
@@ -36,15 +47,11 @@ export function RecoModal({
             if (diff > 0) {
                 // Swiped left - go to next
                 setSwipeDirection('left');
-                if (safeIndex < recommendations.length - 1) {
-                    setIndex((i) => Math.min(recommendations.length - 1, i + 1));
-                }
+                goNext();
             } else {
                 // Swiped right - go to prev
                 setSwipeDirection('right');
-                if (safeIndex > 0) {
-                    setIndex((i) => Math.max(0, i - 1));
-                }
+                goPrev();
             }
             // Reset direction after animation
             setTimeout(() => setSwipeDirection(null), 300);
@@ -122,8 +129,7 @@ export function RecoModal({
 
                 <div className="recoActions">
                     <button
-                        disabled={safeIndex === 0}
-                        onClick={() => setIndex((i) => Math.max(0, i - 1))}
+                        onClick={goPrev}
                     >
                         ◀ Prev
                     </button>
@@ -136,8 +142,7 @@ export function RecoModal({
                     </button>
 
                     <button
-                        disabled={safeIndex === recommendations.length - 1}
-                        onClick={() => setIndex((i) => Math.min(recommendations.length - 1, i + 1))}
+                        onClick={goNext}
                     >
                         Next ▶
                     </button>

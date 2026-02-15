@@ -49,14 +49,15 @@ function moodToParams(mood) {
     }
 }
 
-export async function fetchTrending() {
-    return tmdb("/trending/movie/week");
+export async function fetchTrending(page = 1) {
+    return tmdb("/trending/movie/week", { page });
 }
 
-export async function fetchDiscover(mood) {
+export async function fetchDiscover(mood, page = 1) {
     return tmdb("/discover/movie", {
         include_adult: "false",
         ...moodToParams(mood),
+        page,
     });
 }
 
@@ -78,18 +79,18 @@ export async function fetchMovieKeywords(movieId) {
 }
 
 // ✅ Get TMDB recommendations for a movie (very powerful)
-export async function fetchRecommendationsForMovie(movieId) {
+export async function fetchRecommendationsForMovie(movieId, page = 1) {
     return tmdb(`/movie/${movieId}/recommendations`, {
         include_adult: "false",
-        page: 1,
+        page,
     });
 }
 
 // ✅ Get TMDB similar movies for a movie
-export async function fetchSimilarForMovie(movieId) {
+export async function fetchSimilarForMovie(movieId, page = 1) {
     return tmdb(`/movie/${movieId}/similar`, {
         include_adult: "false",
-        page: 1,
+        page,
     });
 }
 
@@ -109,6 +110,6 @@ export async function fetchDiscoverByGenres(genreIds = [], opts = {}) {
         // optional language filter
         with_original_language: opts.lang || undefined,
 
-        page: 1,
+        page: opts.page ?? 1,
     });
 }

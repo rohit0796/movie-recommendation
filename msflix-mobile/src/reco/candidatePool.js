@@ -18,6 +18,22 @@ function uniqueById(list = []) {
     return Array.from(map.values());
 }
 
+function shuffle(list = []) {
+    const arr = [...list];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function hasAnyGenre(movie, genreIds = []) {
+    const movieGenres = movie?.genre_ids || [];
+    if (!genreIds.length || !movieGenres.length) return false;
+    const set = new Set(movieGenres);
+    return genreIds.some((g) => set.has(g));
+}
+
 function passesQualityGate(movie, minRating = 6.0, minVotes = 200) {
     const rating = movie?.vote_average || 0;
     const votes = movie?.vote_count || 0;
@@ -55,6 +71,44 @@ function getMoodGenreBoost(mood) {
     }
 }
 
+function getStrictMoodGenres(mood) {
+    switch (mood) {
+        case "hype":
+            return [28]; // Action
+        case "mind":
+            return [878]; // Sci-Fi
+        case "chill":
+            return [35]; // Comedy
+        case "emotional":
+            return [18]; // Drama
+        case "horror":
+            return [27]; // Horror
+        default:
+            return [];
+    }
+}
+
+function pickLikedAnchors(likedIds = [], maxAnchors = 6) {
+    if (likedIds.length <= maxAnchors) return likedIds;
+
+    const picked = new Set();
+
+    // keep strong recency signal
+    for (const id of likedIds.slice(-3)) picked.add(id);
+
+    // and spread picks across full history for diversity
+    const remaining = Math.max(0, maxAnchors - picked.size);
+    if (remaining > 0) {
+        const step = (likedIds.length - 1) / Math.max(1, remaining);
+        for (let i = 0; i < remaining; i++) {
+            const idx = Math.floor(i * step);
+            picked.add(likedIds[idx]);
+        }
+    }
+
+    return Array.from(picked).slice(0, maxAnchors);
+}
+
 // -----------------------------
 // MAIN: Adaptive Candidate Pool Builder
 // -----------------------------
@@ -77,6 +131,7 @@ export async function buildCandidatePool({
 
     // ✅ 3) Mood boost genres (context)
     const moodGenres = getMoodGenreBoost(mood);
+    const strictMoodGenres = getStrictMoodGenres(mood);
 
     // ✅ 4) Candidate sources
     const poolParts = [];
@@ -84,18 +139,22 @@ export async function buildCandidatePool({
     // A) If user has liked movies → take TMDB recommendations + similar
     // (This is the best signal)
     if (likedIds.length > 0) {
-        const lastFewLiked = likedIds.slice(-3); // keep it fast
+        const anchorLikedIds = pickLikedAnchors(likedIds, 6);
 
-        const recPromises = lastFewLiked.map(async (id) => {
-            const [rec, sim] = await Promise.allSettled([
-                fetchRecommendationsForMovie(id),
-                fetchSimilarForMovie(id),
-            ]);
+        const recPromises = anchorLikedIds.map(async (id) => {
+            const pageTwoBias = Math.random() > 0.45;
+            const pages = pageTwoBias ? [1, 2] : [1];
 
-            const recList = rec.status === "fulfilled" ? rec.value : [];
-            const simList = sim.status === "fulfilled" ? sim.value : [];
+            const reqs = [];
+            for (const page of pages) {
+                reqs.push(fetchRecommendationsForMovie(id, page));
+                reqs.push(fetchSimilarForMovie(id, page));
+            }
 
-            return [...recList, ...simList];
+            const settled = await Promise.allSettled(reqs);
+            return settled
+                .filter((x) => x.status === "fulfilled")
+                .flatMap((x) => x.value || []);
         });
 
         const recResults = await Promise.all(recPromises);
@@ -105,37 +164,66 @@ export async function buildCandidatePool({
     // B) Discover from taste-based genres (dynamic)
     // Example: if you like Action + Thriller, pool becomes Action/Thriller
     if (topGenres.length > 0) {
-        const tasteDiscover = await fetchDiscoverByGenres(topGenres, {
-            minRating,
-            minVotes,
-            sort_by: "popularity.desc",
-        });
-        poolParts.push(...tasteDiscover);
+        const [tastePage1, tastePage2] = await Promise.allSettled([
+            fetchDiscoverByGenres(topGenres, {
+                minRating,
+                minVotes,
+                sort_by: "popularity.desc",
+                page: 1,
+            }),
+            fetchDiscoverByGenres(topGenres, {
+                minRating,
+                minVotes,
+                sort_by: "vote_average.desc",
+                page: 2,
+            }),
+        ]);
+
+        if (tastePage1.status === "fulfilled") poolParts.push(...tastePage1.value);
+        if (tastePage2.status === "fulfilled") poolParts.push(...tastePage2.value);
     }
 
     // C) Discover from mood (existing mood discover endpoint)
     // This keeps it “right now” relevant
     try {
-        const moodDiscover = await fetchDiscover(mood);
-        poolParts.push(...moodDiscover);
+        const [moodPage1, moodPage2] = await Promise.allSettled([
+            fetchDiscover(mood, 1),
+            fetchDiscover(mood, 2),
+        ]);
+        if (moodPage1.status === "fulfilled") poolParts.push(...moodPage1.value);
+        if (moodPage2.status === "fulfilled") poolParts.push(...moodPage2.value);
     } catch {
         // ignore
     }
 
     // D) Extra: mood genre boosted discover (stronger pool alignment)
     if (moodGenres.length > 0) {
-        const moodGenreDiscover = await fetchDiscoverByGenres(moodGenres.slice(0, 3), {
-            minRating,
-            minVotes,
-            sort_by: "popularity.desc",
-        });
-        poolParts.push(...moodGenreDiscover);
+        const [moodGenrePage1, moodGenrePage2] = await Promise.allSettled([
+            fetchDiscoverByGenres(moodGenres.slice(0, 3), {
+                minRating,
+                minVotes,
+                sort_by: "popularity.desc",
+                page: 1,
+            }),
+            fetchDiscoverByGenres(moodGenres.slice(0, 3), {
+                minRating,
+                minVotes,
+                sort_by: "vote_average.desc",
+                page: 2,
+            }),
+        ]);
+        if (moodGenrePage1.status === "fulfilled") poolParts.push(...moodGenrePage1.value);
+        if (moodGenrePage2.status === "fulfilled") poolParts.push(...moodGenrePage2.value);
     }
 
     // E) Trending fallback (always add some freshness)
     try {
-        const trending = await fetchTrending();
-        poolParts.push(...trending);
+        const [trendPage1, trendPage2] = await Promise.allSettled([
+            fetchTrending(1),
+            fetchTrending(2),
+        ]);
+        if (trendPage1.status === "fulfilled") poolParts.push(...trendPage1.value);
+        if (trendPage2.status === "fulfilled") poolParts.push(...trendPage2.value);
     } catch {
         // ignore
     }
@@ -154,11 +242,16 @@ export async function buildCandidatePool({
         .filter((m) => !liked[String(m.id)]);
 
     // ✅ 7) Apply quality gate
+    if (mood !== "pick" && strictMoodGenres.length > 0) {
+        pool = pool.filter((m) => hasAnyGenre(m, strictMoodGenres));
+    }
+
     pool = pool.filter((m) => passesQualityGate(m, minRating, minVotes));
 
     // ✅ 8) Limit pool size (keep fast)
     if (pool.length > maxPoolSize) {
-        pool = pool.slice(0, maxPoolSize);
+        // Shuffle before trimming so pool doesn't always bias to identical head items.
+        pool = shuffle(pool).slice(0, maxPoolSize);
     }
 
     return pool;

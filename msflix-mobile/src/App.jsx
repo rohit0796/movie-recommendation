@@ -8,7 +8,7 @@ import { loadState, saveState } from "./storage";
 import iconPng from "./assets/icon.png";
 import { recommendMoviesV2 } from "./reco/recommend";
 import { RecoModal } from "./components/RecoModal";
-import { bumpTasteVersion } from "./reco/tasteVersion";
+import { bumpTasteVersion, getTasteVersion } from "./reco/tasteVersion";
 import { clearCandidatePoolCache } from "./reco/candidatePoolCache";
 import {
   loadCandidatePoolCache,
@@ -38,7 +38,7 @@ export default function App() {
   const [recoOpen, setRecoOpen] = useState(false);
   const [recoList, setRecoList] = useState([]);
   const [recoLoading, setRecoLoading] = useState(false);
-  const [cachedPool, setCachedPool] = useState([]);
+  const [cachedPools, setCachedPools] = useState({});
   const [poolLoading, setPoolLoading] = useState(false);
 
   const [items, setItems] = useState([]);
@@ -58,11 +58,12 @@ export default function App() {
       setPoolLoading(true);
 
       try {
-        const cache = loadCandidatePoolCache();
+        const cacheMeta = { mood: "pick", tasteVersion: getTasteVersion() };
+        const cache = loadCandidatePoolCache(cacheMeta);
 
         // ✅ Use cache if fresh
-        if (cache && !isCandidatePoolExpired(cache) && Array.isArray(cache.pool)) {
-          setCachedPool(cache.pool);
+        if (cache && !isCandidatePoolExpired(cache, cacheMeta) && Array.isArray(cache.pool)) {
+          setCachedPools((prev) => ({ ...prev, pick: cache.pool }));
           setPoolLoading(false);
           return;
         }
@@ -76,8 +77,8 @@ export default function App() {
           maxPoolSize: 140,
         });
 
-        saveCandidatePoolCache(pool);
-        setCachedPool(pool);
+        saveCandidatePoolCache(pool, cacheMeta);
+        setCachedPools((prev) => ({ ...prev, pick: pool }));
       } catch (e) {
         console.error("Pool build failed:", e);
       } finally {
@@ -167,7 +168,7 @@ export default function App() {
     });
     bumpTasteVersion();
     clearCandidatePoolCache();
-    setCachedPool([]);
+    setCachedPools({});
   }
 
   function dislikeMovie(movie) {
@@ -179,7 +180,7 @@ export default function App() {
     });
     bumpTasteVersion();
     clearCandidatePoolCache();
-    setCachedPool([]);
+    setCachedPools({});
   }
 
   function markWatched(movie) {
@@ -208,7 +209,7 @@ export default function App() {
     });
     bumpTasteVersion();
     clearCandidatePoolCache();
-    setCachedPool([]);
+    setCachedPools({});
     setRecoList([]); // Clear recommendations since profile changed
     setRecoOpen(false); // Close recommendations modal
   }
@@ -218,11 +219,24 @@ export default function App() {
     setPickingLoading(true);
 
     try {
-      let pool = cachedPool;
+      const cacheMeta = { mood, tasteVersion: getTasteVersion() };
+      const liveCache = loadCandidatePoolCache(cacheMeta);
+      let pool = [];
 
-      // fallback if cache not ready
-      if (!pool || pool.length === 0) {
-        console.log("Pool is empty or not cached, rebuilding...");
+      if (
+        liveCache &&
+        !isCandidatePoolExpired(liveCache, cacheMeta) &&
+        Array.isArray(liveCache.pool) &&
+        liveCache.pool.length > 0
+      ) {
+        pool = liveCache.pool;
+        setCachedPools((prev) => ({ ...prev, [mood]: liveCache.pool }));
+        console.log("Using cached pool with", pool.length, "movies for mood:", mood);
+      } else if (cachedPools?.[mood]?.length > 0) {
+        pool = cachedPools[mood];
+        console.log("Using warm in-memory pool with", pool.length, "movies for mood:", mood);
+      } else {
+        console.log("Pool is missing/stale for this mood, rebuilding...");
         pool = await buildCandidatePool({
           userState,
           mood,
@@ -231,10 +245,8 @@ export default function App() {
           maxPoolSize: 140,
         });
         console.log("Built pool with", pool.length, "movies, saving...");
-        // Save the newly built pool to cache
-        saveCandidatePoolCache(pool);
-      } else {
-        console.log("Using cached pool with", pool.length, "movies");
+        saveCandidatePoolCache(pool, cacheMeta);
+        setCachedPools((prev) => ({ ...prev, [mood]: pool }));
       }
 
       const top5 = await recommendMoviesV2(userState, pool, { mood }, 5);
@@ -422,14 +434,13 @@ export default function App() {
         onRemoveFromWatchlist={() => picked && removeFromWatchlist(picked.id)}
       />
       <RecoModal
-        open={recoOpen}
+        open={recoOpen && !showPicker}
         recommendations={recoList}
         userState={userState}
         onClose={() => setRecoOpen(false)}
         onOpenMovie={(movie) => {
           setPicked(movie);
           setShowPicker(true);
-          setRecoOpen(false);
         }}
         onAddToWatchlist={(movie) => addToWatchlist(movie)}
         onRemoveFromWatchlist={(movieId) => removeFromWatchlist(movieId)}

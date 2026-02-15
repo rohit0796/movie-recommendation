@@ -4,6 +4,30 @@ import { getMovieKeywords } from "./keywordCache";
 import { isRecentlyRecommended } from "./recoHistory";
 
 // ---------- helpers ----------
+function getStrictMoodGenres(mood) {
+  switch (mood) {
+    case "hype":
+      return [28]; // Action
+    case "mind":
+      return [878]; // Sci-Fi
+    case "chill":
+      return [35]; // Comedy
+    case "emotional":
+      return [18]; // Drama
+    case "horror":
+      return [27]; // Horror
+    default:
+      return [];
+  }
+}
+
+function hasAnyGenre(movie, genreIds = []) {
+  const movieGenres = movie?.genre_ids || [];
+  if (!genreIds.length || !movieGenres.length) return false;
+  const set = new Set(movieGenres);
+  return genreIds.some((g) => set.has(g));
+}
+
 function overlapCount(arrA = [], arrB = []) {
   const setB = new Set(arrB);
   let c = 0;
@@ -70,12 +94,21 @@ export async function recommendMoviesV2(
   // ✅ Also apply quality gate here (IMPORTANT)
 
 
-  const filtered = candidates
+  let filtered = candidates
     .filter((m) => !watched[String(m.id)])
     .filter((m) => !disliked[String(m.id)])
     .filter((m) => !liked[String(m.id)])
     .filter((m) => !isRecentlyRecommended(m.id))
     .filter((m) => passesQualityGate(m));
+
+  const mood = ctx?.mood || "pick";
+  const moodGenres = getStrictMoodGenres(mood);
+
+  // Strict mood-only filtering for non-random moods.
+  if (mood !== "pick" && moodGenres.length > 0) {
+    filtered = filtered.filter((m) => hasAnyGenre(m, moodGenres));
+  }
+
   const profile = await buildTasteProfileV2(userState);
   // Score + rank
   const ranked = [];
